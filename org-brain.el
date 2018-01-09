@@ -583,7 +583,7 @@ interactively."
               (insert "\n"))
             (org-brain--insert-visualize-button child)
             (insert "  ")))
-        (org-brain-children entry)))
+        (cl-sort (org-brain-children entry) #'string<)))
 
 (defun org-brain--insert-parent-and-sibling-entries
     (entry &optional ignored-siblings)
@@ -607,7 +607,7 @@ interactively."
                    (org-brain--insert-visualize-button child)
                    (setq max-width (max max-width (current-column)))
                    (newline (forward-line 1))))
-               children)
+               (cl-sort children #'string<))
               (goto-line 4)
               (forward-line (- (length children) 2))
               (picture-forward-column col-start)
