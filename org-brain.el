@@ -36,6 +36,8 @@
 (require 'org-attach)
 (require 'picture)
 (require 'subr-x)
+(require 'org-mac-link-grabber)         ; Optional. To provide
+                                        ; org-brain-visualize-add-macgrabber-resource-link if desired.
 
 (defgroup org-brain nil
   "Org-mode concept mapping"
@@ -544,6 +546,33 @@ interactively."
   "Add `current-kill' as a resource link."
   (interactive)
   (org-brain-visualize-add-resource-link (current-kill 0) nil t))
+
+(defun org-brain-visualize-add-macgrabber-resource-link (link &optional description prompt)
+  "Invoke org-mac-grab-link to grab link from external
+application and insert on `org-brain--visualizing-entry'. Where
+to insert LINK is guessed with `org-brain--visualize-get-headline'."
+  (interactive "i")
+  (if (not (eq major-mode 'org-brain-visualize-mode))
+      (error "Not in org-brain-visualize-mode")
+    (let ((heading (org-brain--visualize-get-headline))
+          (position (point))
+          (entry-path (org-brain-entry-path org-brain--visualizing-entry)))
+      (with-temp-file entry-path
+        (insert-file-contents entry-path)
+        (delay-mode-hooks
+          (org-mode)
+          (goto-char (org-find-exact-headline-in-buffer heading))
+          (when-let (property-block (org-get-property-block))
+            (goto-char (cdr property-block)))
+          (end-of-line)
+          (insert "\n- ")
+          (if (and link (not prompt))
+              (insert (format "%s" (org-make-link-string link description)))
+            (call-interactively 'org-mac-grab-link))))
+      (when (get-file-buffer entry-path)
+        (kill-buffer (get-file-buffer entry-path)))
+      (revert-buffer)
+      (goto-char position))))
 
 (defun org-brain-visualize-add-attachment ()
   "Add an attachment to `org-brain--visualize-get-headline'."
@@ -1054,6 +1083,8 @@ PARENT can hold multiple entries, by using `org-brain-batch-separator'."
 (define-key org-brain-visualize-mode-map "f" 'org-brain-visualize)
 (define-key org-brain-visualize-mode-map "r" 'org-brain-rename-entry)
 (define-key org-brain-visualize-mode-map "l" 'org-brain-visualize-add-resource-link)
+(when (featurep 'org-mac-link-grabber)
+  (define-key org-brain-visualize-mode-map "L" 'org-brain-visualize-add-macgrabber-resource-link))
 (define-key org-brain-visualize-mode-map "a" 'org-brain-visualize-add-attachment)
 (define-key org-brain-visualize-mode-map "\C-y" 'org-brain-visualize-paste-link)
 (define-key org-brain-visualize-mode-map "s" 'org-brain-visualize-search-entries)
