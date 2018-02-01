@@ -1086,6 +1086,16 @@ by org-brain-headline-to-file."
   (when (not (org-brain-parent-exists-p child org-brain--visualizing-entry))
     (org-brain-add-parent child org-brain--visualizing-entry)))
 
+(defun org-brain-prepare-child-file-name (title)
+  "Replace certain characters in title and form filename."
+  (concat org-brain--visualizing-entry "--"
+          (loop for ch across (replace-regexp-in-string "," "" title)
+                collect (cond ((char-equal ch ? )
+                               ?-)
+                              ((char-equal ch ?/)
+                               ?|)
+                              (t ch)))))
+
 (defun org-brain-headline-to-file ()
   "Cut the subtree currently being edited and create a new file
 from it then add said entry/file as child to org-brain--visualizing-entry."
@@ -1095,7 +1105,7 @@ from it then add said entry/file as child to org-brain--visualizing-entry."
          (title (downcase (org-element-property :title (org-element-at-point))))
          (filename (concat
                     (expand-file-name
-                     (concat org-brain--visualizing-entry "--" (replace-regexp-in-string " " "-" title))
+                     (org-brain-prepare-child-file-name title)
                      org-brain-path)
                     ".org")))
     (when (file-exists-p filename)
