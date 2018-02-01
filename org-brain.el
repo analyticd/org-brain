@@ -1061,6 +1061,66 @@ PARENT can hold multiple entries, by using `org-brain-batch-separator'."
   (interactive)
   (find-file-other-window org-brain-path))
 
+(defun string-capitalize-first-word (s)
+  "Given a string, return the string but with its first word
+capitalized."
+  (let ((string-parts (split-string s " ")))
+    (if (> (length string-parts) 1)
+        (concat (capitalize (first (split-string s " ")))
+                (substring s (string-match " " s 0)))
+      (capitalize (first string-parts)))))
+
+(defun org-brain-goto-heading-under-point ()
+  "Go the header that is current under point in the org brain
+visualize buffer."
+  (push-button)
+  (sleep-for 2))
+
+(defun org-brain-headline-to-file-add-child (child)
+  "Add child entry as child of org-brain--visualizing-entry. Used
+by org-brain-headline-to-file."
+  ;; Follows the pattern of org-brain-visualize-add-child.
+  (org-brain-invalidate-files-cache)
+  (when (not (org-brain-child-exists-p org-brain--visualizing-entry child))
+    (org-brain-add-child org-brain--visualizing-entry child))
+  (when (not (org-brain-parent-exists-p child org-brain--visualizing-entry))
+    (org-brain-add-parent child org-brain--visualizing-entry)))
+
+(defun org-brain-headline-to-file ()
+  "Cut the subtree currently being edited and create a new file
+from it then add said entry/file as child to org-brain--visualizing-entry."
+  ;; (interactive)
+  (org-back-to-heading)
+  (let* ((level (org-outline-level))
+         (title (downcase (org-element-property :title (org-element-at-point))))
+         (filename (concat
+                    (expand-file-name
+                     (concat org-brain--visualizing-entry "--" (replace-regexp-in-string " " "-" title))
+                     org-brain-path)
+                    ".org")))
+    (when (file-exists-p filename)
+      (error "File with that name already exists."))
+    (org-cut-subtree)
+    (save-buffer)
+    (find-file-noselect filename)
+    (with-temp-file filename
+      (delay-mode-hooks
+        (org-mode)
+        (goto-char (point-min))
+        (insert (format "#+TITLE: %s\n\n" (string-capitalize-first-word title)))
+        (org-paste-subtree 1)))
+    (org-brain-headline-to-file-add-child (org-brain-path-entry-name filename))))
+
+(defun org-brain-visualize-headline-to-file ()
+  "Go to heading under point, execute org-brain-headline-to-file,
+pop back to *org-brain* buffer and refresh it."
+  (interactive)
+  (org-brain-goto-heading-under-point)
+  (org-brain-headline-to-file)
+  (pop-to-buffer "*org-brain*")
+  (when (string-equal (buffer-name) "*org-brain*")
+    (revert-buffer)))
+
 (define-derived-mode org-brain-visualize-mode
   special-mode  "Org-brain Visualize"
   "Major mode for `org-brain-visualize'.
@@ -1081,6 +1141,7 @@ PARENT can hold multiple entries, by using `org-brain-batch-separator'."
 (define-key org-brain-visualize-mode-map [backtab] 'backward-button)
 (define-key org-brain-visualize-mode-map "o" 'org-brain-visualize-open)
 (define-key org-brain-visualize-mode-map "f" 'org-brain-visualize)
+(define-key org-brain-visualize-mode-map "e" 'org-brain-visualize-headline-to-file)
 (define-key org-brain-visualize-mode-map "r" 'org-brain-rename-entry)
 (define-key org-brain-visualize-mode-map "l" 'org-brain-visualize-add-resource-link)
 (when (featurep 'org-mac-link-grabber)
