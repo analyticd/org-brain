@@ -118,6 +118,91 @@ will be considered org-brain entries."
   :group 'org-brain
   :type '(string))
 
+(defcustom org-brain-use-unicode-symbols nil
+  "Use fancier unicode symbols for siblings and current entry."
+  :group 'org-brain
+  :type '(boolean))
+
+(defcustom org-brain-sibling-unicode-symbol "├► "
+  "The unicode symbol to use for siblings in the org-brain
+visualize user interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-sibling-ascii-symbol "/ "
+  "The ascii symbol to use for siblings in the org-brain
+visualize user interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-unicode-vertical-line "│"
+  "The unicode symbol to use for the vertical line that stretches
+from the parent to the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-ascii-vertical-line "|"
+  "The ascii symbol to use for the vertical line that stretches
+from the parent to the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-unicode-main-entry-arrow-head "╰► " ;; "▼"
+  "The unicode symbol to use for the downward arrow that points to
+the main entry in the org-brain visualize user interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-ascii-main-entry-arrow-head "V"
+  "The ascii symbol to use for the downward arrow that points to
+the main entry in the org-brain visualize user interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-unicode-horizontal-line ?―
+  "The unicode symbol to use for the horizontal line that appears
+below the child entries in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-ascii-horizontal-line ?-
+  "The ascii symbol to use for the horizontal line that appears
+below the child entries in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-unicode-bullet-char ?•
+  "The unicode symbol/char to use for the bullet that appears in the
+content of the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-ascii-bullet-char ?*
+  "The ascii symbol/char to use for the bullet that appears in the
+content of the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-unicode-bullet (format "%c" org-brain-unicode-bullet-char)
+  "The unicode symbol string to use for the bullet that appears in the
+content of the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
+(defcustom org-brain-ascii-bullet (format "%c" org-brain-ascii-bullet-char)
+  "The ascii symbol string to use for the bullet that appears in the
+content of the main entry in the org-brain visualize user
+interface."
+  :group 'org-brain
+  :type '(string))
+
 ;;; Utils
 (defun org-brain--empty-string-p (string)
   "Return true if the STRING is empty or nil. Expects string type."
@@ -511,7 +596,11 @@ also made aware of the change."
   "Get headline at point in `org-brain--visualizing-entry'."
   (save-excursion
     (end-of-line)
-    (re-search-backward "^\*+ *\\(.*\\)" nil t)
+    (re-search-backward
+     (if org-brain-use-unicode-symbols
+         (format  "^%c+ *\\(.*\\)" org-brain-unicode-bullet-char)
+         (format "^%c+ *\\(.*\\)" org-brain-ascii-bullet-char))
+     nil t)
     (match-string 1)))
 
 (defun org-brain-visualize-add-resource-link (link &optional description prompt)
@@ -632,7 +721,10 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                  (unless (string-equal entry child)
                    (picture-forward-column col-start)
                    (insert (make-string
-                            (1+ (length parent-title)) ?\ ) "/ ")
+                            (1+ (length parent-title)) ?\ )
+                           (if org-brain-use-unicode-symbols
+                               org-brain-sibling-unicode-symbol
+                             org-brain-sibling-ascii-symbol))
                    (org-brain--insert-visualize-button child)
                    (setq max-width (max max-width (current-column)))
                    (newline (forward-line 1))))
@@ -657,7 +749,9 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
         (picture-move-down 1)
         (insert (make-string (1+ (- (cdar parent-positions)
                                     (cdar (last parent-positions))))
-                             ?-))
+                             (if org-brain-use-unicode-symbols
+                                 org-brain-unicode-horizontal-line
+                               org-brain-ascii-horizontal-line)))
         ;; Lines from parents to bottom
         (mapc (lambda (pos)
                 (goto-line (car pos))
@@ -665,12 +759,16 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                 (while (< (line-number-at-pos (point))
                           maxline)
                   (picture-move-down 1)
-                  (insert "|")
+                  (insert (if org-brain-use-unicode-symbols
+                              org-brain-unicode-vertical-line
+                              org-brain-ascii-vertical-line))
                   (unless (looking-at-p "\n") (delete-char 1)))
                 (picture-move-down 1)
                 (ignore-errors
                   (delete-char 1))
-                (insert "*"))
+                (insert (if org-brain-use-unicode-symbols
+                            org-brain-unicode-bullet
+                          org-brain-ascii-bullet)))
               parent-positions)
         ;; Line to main entry
         (move-to-column (/ (+ (cdar (last parent-positions))
@@ -678,12 +776,18 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                            2))
         (delete-char 1)
         (when (> (length parent-positions) 1)
-          (insert "*")
+          (insert (if org-brain-use-unicode-symbols
+                      org-brain-unicode-bullet
+                    org-brain-ascii-bullet))
           (backward-char 1)
           (picture-move-down 1)
-          (insert "|")
+          (insert (if org-brain-use-unicode-symbols
+                      org-brain-unicode-vertical-line
+                    org-brain-ascii-vertical-line))
           (picture-move-down 1))
-        (insert "V")))))
+        (insert (if org-brain-use-unicode-symbols
+                    org-brain-unicode-main-entry-arrow-head
+                    org-brain-ascii-main-entry-arrow-head))))))
 
 (defun org-brain--link-description (link-contents)
   "Extract LINK description."
@@ -768,13 +872,17 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
 (defun org-brain--insert-headline (headline headline-title entry-path)
   "Insert text button for HEADLINE with title HEAD-TITLE and
   target ENTRY-PATH."
-  (insert (make-string (org-element-property :level headline) ?*) " ")
+  (insert (make-string (org-element-property :level headline)
+                       (if org-brain-use-unicode-symbols
+                           org-brain-unicode-bullet-char
+                         org-brain-ascii-bullet-char)) " ")
   (insert-text-button
    headline-title
    'action (lambda (_x)
              (org-open-file entry-path
                             nil nil
-                            (concat "*" headline-title)))
+                            (concat org-brain-ascii-bullet
+                                    headline-title)))
    'follow-link t)
   (insert "\n"))
 
@@ -1002,7 +1110,9 @@ PARENT can hold multiple entries, by using `org-brain-batch-separator'."
               (org-element-property :title headline))))))
   (org-brain-log "Visualizing entry: %s" org-brain--visualizing-entry)
   (org-brain-log "Entry to search for: %s" entry)
-  (re-search-forward (format "^\*+ *%s" entry))
+  (re-search-forward (if org-brain-use-unicode-symbols
+                         (format "^%c+ *%s" org-brain-unicode-bullet-char entry)
+                       (format "^%c+ *%s" org-brain-ascii-bullet-char entry)))
   (backward-char 1)
   (push-button))
 
