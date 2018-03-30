@@ -203,6 +203,22 @@ interface."
   :group 'org-brain
   :type '(string))
 
+(defcustom org-brain-visualize-one-child-per-line nil
+  "If non-nil, each child of the visualized entry is listed on its own line.
+If nil (default), children are filled up to the `fill-column'."
+  :group 'org-brain
+  :type '(boolean))
+
+(defcustom org-brain-visualize-show-resources t
+  "Should entry resources be shown in `org-brain-visualize'?"
+  :group 'org-brain
+  :type '(boolean))
+
+(defcustom org-brain-visualize-show-children t
+  "Should entry children be shown in `org-brain-visualize'?"
+  :group 'org-brain
+  :type '(boolean))
+
 ;;; Utils
 (defun org-brain--empty-string-p (string)
   "Return true if the STRING is empty or nil. Expects string type."
@@ -216,7 +232,8 @@ interface."
   (let ((nl (gensym)))
     `(let (,nl)
        (maphash (lambda (k v)
-                  (push (list k v) ,nl)) ,hash-table)
+                  (push (list k v) ,nl))
+                ,hash-table)
        ,nl)))
 
 (defmacro org-brain--list-to-hash (list)
@@ -562,6 +579,14 @@ also made aware of the change."
   :group 'org-brain
   :type '(repeat string))
 
+(defcustom org-brain-headline-links-only-show-visible t
+  "Only show visible parts (descriptions) of headline links.
+
+See the docstring for `org-brain-headline-at' for more info
+on how this is implemented."
+  :group 'org-brain
+  :type '(boolean))
+
 ;;; FIXME This works, but only goes to attachment directory level, not to the
 ;;; actual attachment files. Shortcoming of org or org-brain? Seems the former.
 (defun org-brain--insert-attachment-files (entry headline)
@@ -700,7 +725,9 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                      fill-column)
               (insert "\n"))
             (org-brain--insert-visualize-button child)
-            (insert "  ")))
+            (if org-brain-visualize-one-child-per-line
+                (insert "\n")
+              (insert " "))))
         (cl-sort (org-brain-children entry) #'string<)))
 
 (defun org-brain--insert-parent-and-sibling-entries
@@ -877,7 +904,9 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                            org-brain-unicode-bullet-char
                          org-brain-ascii-bullet-char)) " ")
   (insert-text-button
-   headline-title
+   (if org-brain-headline-links-only-show-visible
+       (org-brain-replace-links-with-visible-parts headline-title)
+     headline-title)
    'action (lambda (_x)
              (org-open-file entry-path
                             nil nil
@@ -885,6 +914,23 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
                                     headline-title)))
    'follow-link t)
   (insert "\n"))
+
+(defun org-brain-replace-links-with-visible-parts (raw-str)
+  "Get RAW-STR with its links replaced by their descriptions."
+  (let ((ret-str "")
+        (start 0)
+        match-start)
+    (while (setq match-start (string-match org-bracket-link-regexp raw-str start))
+      (setq ret-str
+            (concat ret-str
+                    ;; Include everything not part of the string.
+                    (substring-no-properties raw-str start match-start)
+                    ;; Include either the link description, or the link
+                    ;; destination.
+                    (or (match-string-no-properties 3 raw-str)
+                        (match-string-no-properties 1 raw-str))))
+      (setq start (match-end 0)))
+    (concat ret-str (substring-no-properties raw-str start nil))))
 
 (defun org-brain--insert-headlines-and-resources (entry)
   "Insert a horizontal separator followed by the headlines and
@@ -899,7 +945,7 @@ to insert LINK is guessed with `org-brain--visualize-get-headline'."
         ;; Draw headline's attachments
         (org-brain--insert-attachment-files entry headline)
         ;; Draw headline's links
-        (org-brain--insert-resources headline)))
+        (when org-brain-visualize-show-resources (org-brain--insert-resources headline))))
     (insert "\n")))
 
 ;;;###autoload
@@ -929,13 +975,31 @@ the concept map buffer will gain focus."
           (delete-char (- half-title-length)))))
     (let ((entry-pos (point)))
       (insert (org-brain-title entry) "\n\n")
-      (org-brain--insert-entry-children entry)
+      (when org-brain-visualize-show-children (org-brain--insert-entry-children entry))
       (org-brain--insert-headlines-and-resources entry)
       ;; Finishing
       (org-brain-visualize-mode)
       (goto-char entry-pos)
       (unless nofocus (pop-to-buffer "*org-brain*"))))
   (setq org-brain--visualizing-entry entry))
+
+(defun org-brain-visualize-toggle-resources ()
+  "Visualize an entry, but toggle visibility of resource links."
+  (interactive)
+  (setf org-brain-visualize-show-resources (not org-brain-visualize-show-resources))
+  (revert-buffer))
+
+(defun org-brain-visualize-toggle-children ()
+  "Visualize an entry, but toggle visibility of children."
+  (interactive)
+  (setf org-brain-visualize-show-children (not org-brain-visualize-show-children))
+  (revert-buffer))
+
+(defun org-brain-visualize-toggle-one-child-per-line ()
+  "Toggle displaying children on one line."
+  (interactive)
+  (setf org-brain-visualize-one-child-per-line (not org-brain-visualize-one-child-per-line))
+  (revert-buffer))
 
 (defun org-brain-visualize-revert (_ignore-auto _noconfirm)
   "Revert function for `org-brain-visualize-mode'."
@@ -1261,6 +1325,9 @@ pop back to *org-brain* buffer and refresh it."
 (define-key org-brain-visualize-mode-map [backtab] 'backward-button)
 (define-key org-brain-visualize-mode-map "o" 'org-brain-visualize-open)
 (define-key org-brain-visualize-mode-map "f" 'org-brain-visualize)
+(define-key org-brain-visualize-mode-map (kbd "C-c t r") 'org-brain-visualize-toggle-resources)
+(define-key org-brain-visualize-mode-map (kbd "C-c t c") 'org-brain-visualize-toggle-children)
+(define-key org-brain-visualize-mode-map (kbd "C-c t l") 'org-brain-visualize-toggle-one-child-per-line)
 (define-key org-brain-visualize-mode-map "e" 'org-brain-visualize-headline-to-file)
 (define-key org-brain-visualize-mode-map "r" 'org-brain-rename-entry)
 (define-key org-brain-visualize-mode-map "l" 'org-brain-visualize-add-resource-link)
