@@ -618,6 +618,11 @@ on how this is implemented."
   :group 'org-brain
   :type 'integer)
 
+(defcustom org-brain-refile-max-level 1
+  "The default max-level used by `org-brain-refile'."
+  :group 'org-brain
+  :type 'integer)
+
 (defun org-brain--visualize-text (entry)
   "Insert text of ENTRY.
 Helper function for `org-brain-visualize'."
@@ -1606,7 +1611,7 @@ capitalized."
       (capitalize (first string-parts)))))
 
 (defun org-brain-goto-heading-under-point ()
-  "Go the header that is current under point in the org brain
+  "Go to the header that is current under point in the org brain
 visualize buffer."
   (push-button)
   (sleep-for 2))
@@ -1681,6 +1686,62 @@ pop back to *org-brain* buffer and refresh it."
     (setq org-brain-visualizing-mind-map (not org-brain-visualizing-mind-map))
     (org-brain-visualize org-brain--visualizing-entry)))
 
+;;;###autoload
+(defun org-brain-refile (target)
+  "Run `org-refile' to a user chosen heading in `org-brain-files', with set MAX-LEVEL.
+If MAX-LEVEL isn't given, use `org-brain-refile-max-level'."
+  (interactive
+   (list (completing-read "Refile target: " (org-brain-files t))))
+  (unless current-prefix-arg
+    (setq max-level org-brain-refile-max-level))
+  (let ((org-refile-targets `((,(org-brain-entry-path target) . (:maxlevel . ,max-level)))))
+    (org-refile)
+    (save-excursion
+      (delay-mode-hooks
+        (with-current-buffer (find-buffer-visiting (org-brain-entry-path target))
+          (save-buffer))))))
+
+(defun org-brain-visualize-refile ()
+  "Refile org-brain--visualizing-entry."
+  (interactive)
+  (if (not (eq major-mode 'org-brain-visualize-mode))
+      (error "Not in org-brain-visualize-mode")
+    (let* ((heading (org-brain--visualize-get-headline))
+           (position (point))
+           (entry-path (org-brain-entry-path org-brain--visualizing-entry))
+           (existing-buffer (find-buffer-visiting entry-path)))
+      (delay-mode-hooks
+        (with-current-buffer (find-file entry-path)
+          (goto-char (org-find-exact-headline-in-buffer heading))
+          (call-interactively #'org-brain-refile)
+          (save-buffer)
+          (if existing-buffer
+              (progn
+                (switch-to-buffer "*org-brain*")
+                (revert-buffer))
+            (kill-this-buffer)))
+        (revert-buffer)
+        (goto-char position)))))
+
+(defun org-brain-visualize-cut-subtree ()
+  "Cut subtree rooted at `org-brain--visualize-get-headline'."
+  (interactive)
+  (if (not (eq major-mode 'org-brain-visualize-mode))
+      (error "Not in org-brain-visualize-mode")
+    (let* ((heading (org-brain--visualize-get-headline))
+           (position (point))
+           (entry-path (org-brain-entry-path org-brain--visualizing-entry))
+           (existing-buffer (find-buffer-visiting entry-path)))
+      (delay-mode-hooks
+        (with-current-buffer (find-file entry-path)
+          (goto-char (org-find-exact-headline-in-buffer heading))
+          (call-interactively #'org-cut-subtree)
+          (save-buffer)
+          (if existing-buffer
+              (switch-to-buffer "*org-brain*")
+            (kill-this-buffer)))
+        (revert-buffer)
+        (goto-char position)))))
 (define-derived-mode org-brain-visualize-mode
   special-mode  "org-brain Visualize"
   "Major mode for `org-brain-visualize'.
@@ -1717,6 +1778,8 @@ pop back to *org-brain* buffer and refresh it."
 (when (featurep 'org-mac-link-grabber)
   (define-key org-brain-visualize-mode-map "L" 'org-brain-visualize-add-macgrabber-resource-link))
 (define-key org-brain-visualize-mode-map "a" 'org-brain-visualize-add-attachment)
+(define-key org-brain-visualize-mode-map "#" 'org-brain-visualize-refile)
+(define-key org-brain-visualize-mode-map "x" 'org-brain-visualize-cut-subtree)
 (define-key org-brain-visualize-mode-map "\C-y" 'org-brain-visualize-paste-link)
 (define-key org-brain-visualize-mode-map "s" 'org-brain-visualize-search-entries)
 (define-key org-brain-visualize-mode-map "S" 'org-brain-visualize-search-links)
